@@ -25,7 +25,7 @@ When you access to a URL indicated at the console, you will see a picture taken 
 And you try a html file in the resource directly, 
 the spresense that this sketch is installed in will turn into a Web Camera server changing the picture every 5 seconds automatically.
 
-![Spresense Camera server](https://github.com/YoshinoTaro/resources/ESP8266WebCamera.JPG)
+![Spresense Camera server](https://github.com/YoshinoTaro/ESP8266ATLib-for-Spresense/blob/master/resources/ESP8266WebCamera.JPG)
 
 
 
