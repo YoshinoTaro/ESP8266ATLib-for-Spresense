@@ -7,7 +7,7 @@
  * (because Arduino library of Spresense is under LGPL v2.1)
  *
  * Change Log:
- *   2019 Apr. xxth  initial release
+ *   2019 Apr. 19th  initial release
  */
 
 #include "ESP8266ATLib.h"

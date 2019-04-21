@@ -24,8 +24,7 @@
  *   esp8266at.espConnectAP(SSID, PASS);
  *   esp8266at.setupTcpServer(SERVER_PORT);
  * loop:
- *   String s = esp8266at.espListenToClient();
- *   String linkID = extractLinkID(s);
+ *   String s = esp8266at.espListenToClient(&linkID);
  *   esp8266at.sendMessageToServer(linkID, msg);
  *
  * <case-3> SoftAP Mode & Server
@@ -34,10 +33,8 @@
  *   esp8266at.espStartAP(SSID, PASS);
  *   esp8266at.setupTcpServer(SERVER_PORT);
  * loop:
- *   String s = esp8266at.espListenToClient();
- *   String linkID = extractLinkID(s);
+ *   String s = esp8266at.espListenToClient(&linkID);
  *   esp8266at.sendMessageToServer(linkID, msg);
- *
  */
 
 #include "Arduino.h"
