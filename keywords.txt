@@ -1,0 +1,35 @@
+#########################################
+# Syntax Coloring Map for ESP8266ATLib  #
+#########################################
+# Class
+#########################################
+
+esp8266at	KEYWORD1
+ESP8266ATLib	KEYWORD1
+
+#########################################
+# Methods and Functions
+#########################################
+
+begin       	KEYWORD2
+espVersion	KEYWORD2
+espReset	KEYWORD2
+setDebug 	KEYWORD2
+isDebug 	KEYWORD2
+setWaitTime 	KEYWORD2
+getWaitTime 	KEYWORD2
+espConnectAP	KEYWORD2
+espStartAP	KEYWORD2
+isSoftAP	KEYWORD2
+getLocalIP	KEYWORD2
+getSSID 	KEYWORD2
+setupTcpServer	KEYWORD2
+espListenToClient	KEYWORD2
+sendMessageToClient	KEYWORD2
+sendBinaryToClient	KEYWORD2
+closeClientConnection	KEYWORD2
+extractLinkID    	KEYWORD2
+setupTcpClient  	KEYWORD2
+espListenToServer	KEYWORD2
+sendMessageToServer	KEYWORD2
+closeServerConnection	KEYWORD2

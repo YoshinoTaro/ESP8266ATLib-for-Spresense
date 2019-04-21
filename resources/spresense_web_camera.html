@@ -1,0 +1,22 @@
+<html>
+<head>
+<title>Spresense Camera</title>
+</head>
+<body>
+<img src="http://192.168.2.119/cam.jpg" name="webcam"><br>
+（<span id="update"></span>更新）
+<script type="text/javascript">
+cam = new Image();
+cam.src = document.webcam.src;
+webcamTimer(); 
+
+function webcamTimer() {
+  var now = new Date();
+  document.webcam.src = cam.src + "?" + now.getTime(); 
+  document.getElementById("update").innerHTML = now.getHours() 
+          + "時" + now.getMinutes() + "分" + now.getSeconds() + "秒"; 
+  setTimeout("webcamTimer()",5000); 
+}
+</script>
+</body>
+</html>
