@@ -22,7 +22,7 @@ This example needs Spresense Camera board that is sold at Switch Science as well
 The combination of Spresense main board, camera board and Wi-Fi Add-on board is very small and super low power, 
 so it is able to be driven by dry cell batteries.
 When you access to a URL indicated at the console, you will see a picture taken by Spresense camera board.
-And you try a html file in the resource directly, 
+And you also try a html file in the resource directly, 
 the spresense that this sketch is installed in will turn into a Web Camera server changing the picture every 5 seconds automatically.
 
 ![Spresense Camera server](https://github.com/YoshinoTaro/ESP8266ATLib-for-Spresense/blob/master/resources/ESP8266WebCamera.JPG)
