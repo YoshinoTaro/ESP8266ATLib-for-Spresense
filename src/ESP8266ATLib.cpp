@@ -248,11 +248,15 @@ String ESP8266ATLib::espListenToServer()
   if (strstr(res.c_str(), "+IPD")) {
     uint16_t index = res.indexOf(":");
     uint16_t sizeOfResponse = res.substring(5, index).toInt();
-    return res.substring(index+1, sizeOfResponse+index+1);
+    return res.substring(index+1, res.length());
   }
-  else {
-    return String("");
   }
+  else if (strstr(res.c_str(), "CLOSED")) {
+    debugPrint("Connection Closed");
+    return "";
+  }
+
+  return res;
 }
 
 String ESP8266ATLib::espListenToClient()
