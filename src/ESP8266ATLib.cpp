@@ -250,7 +250,6 @@ String ESP8266ATLib::espListenToServer()
     uint16_t sizeOfResponse = res.substring(5, index).toInt();
     return res.substring(index+1, res.length());
   }
-  }
   else if (strstr(res.c_str(), "CLOSED")) {
     debugPrint("Connection Closed");
     return "";
