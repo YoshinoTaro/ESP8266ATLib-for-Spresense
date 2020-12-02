@@ -3,18 +3,18 @@
 <title>Spresense Camera</title>
 </head>
 <body>
-<img src="http://192.168.2.119/cam.jpg" name="webcam"><br>
-（<span id="update"></span>更新）
+<img name="webcam"><br>
+(<span id="update"></span>Update)
 <script type="text/javascript">
 cam = new Image();
-cam.src = document.webcam.src;
+cam.src = "http://xxx.xxx.xxx.xxx/cam.jpg";
 webcamTimer(); 
 
 function webcamTimer() {
   var now = new Date();
   document.webcam.src = cam.src + "?" + now.getTime(); 
   document.getElementById("update").innerHTML = now.getHours() 
-          + "時" + now.getMinutes() + "分" + now.getSeconds() + "秒"; 
+          + ":" + now.getMinutes() + ":" + now.getSeconds(); 
   setTimeout("webcamTimer()",5000); 
 }
 </script>
