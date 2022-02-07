@@ -1,6 +1,6 @@
 /*
  * Spresense ESP8266ATLib Simple Camera Slideshow 
- * Copyright 2020 Yoshino Taro
+ * Copyright 2020-2022 Yoshino Taro
  * 
  * This example demostrate how to make a simple serveillance camera using ESP8266ATLib.
  * Please note that this library is made for Spresense ESP9266 Wi-Fi Add-on board.
@@ -17,14 +17,17 @@
 
 // #define SDDEBUG
 // #define SAP_MODE
-#define BAUDRATE 2000000
+/* you need to set a baurate for ESP8266 connection */
+#define BAUDRATE 115200
 #define BUFSIZE 2048
 
-#define SLIDESHOW_INTERVAL (10000) /* msec */
+#define SLIDESHOW_INTERVAL (10) /* sec */
 
 #ifdef SDDEBUG
 #include <SDHCI.h>
-SDClass  theSD;
+SDClass theSD;
+File myFile;
+char filename[16];
 #endif
 
 #ifdef SAP_MODE
@@ -77,7 +80,7 @@ void setup() {
   neopixel.show();
 #endif
 
-  // esp8266at.setWaitTime(100);
+  esp8266at.setWaitTime(100);
 }
 
 void loop() {
@@ -92,19 +95,35 @@ void loop() {
   Serial.println(s);
 
   if (s.indexOf("cam.jpg") != -1) {
+    static uint32_t last_time_ms = 0;
+    static int len = 0;
+    static uint8_t* imgbuf = NULL;
 
     digitalWrite(LED2, HIGH);
     
-    int len = 0;
-    uint8_t* imgbuf = NULL;
-    
-    while (len == 0) {
-      Serial.println("Taking a picture");
-      CamImage img = theCamera.takePicture();
-      len  = img.getImgSize();
-      imgbuf = img.getImgBuff();
-      Serial.println("Image Size: " + String(len));
-      delay(100);
+#ifdef SDDEBUG
+    bool bRecord = false;
+#endif
+
+    uint32_t duration = (millis() - last_time_ms)/1000;
+    if (duration > SLIDESHOW_INTERVAL) {
+      len = 0;
+      while (len == 0) {
+        Serial.println("Taking a picture");
+        CamImage img = theCamera.takePicture();
+        len = img.getImgSize();
+        if (imgbuf != NULL) { free(imgbuf); }
+        imgbuf = (uint8_t*)malloc(len*sizeof(uint8_t));
+        memcpy(imgbuf, img.getImgBuff(), len*sizeof(uint8_t));
+        last_time_ms = millis();
+        Serial.println("Image Size: " + String(len));
+        delay(100);
+      }
+#ifdef SDDEBUG
+      bRecord = true;
+#endif
+    } else {
+      Serial.println("Resending a picture");
     }
     
     String msg = "HTTP/1.1 200 OK\r\n";
@@ -116,30 +135,36 @@ void loop() {
     esp8266at.sendMessageToClient(linkID, msg);
     
 #ifdef SDDEBUG
-    char filename[16];
-    sprintf(filename, "PICT%d.JPG", len);
-    Serial.println("Save the taken picture as " + String(filename));
-    File myFile = theSD.open(filename, FILE_WRITE);
+    if (bRecord) {
+      static int g_counter = 0;
+      sprintf(filename, "P%05d.JPG", g_counter);
+      Serial.println("Save the taken picture as " + String(filename));
+      myFile = theSD.open(filename, FILE_WRITE);
+      ++g_counter;
+    }
 #endif
-
-    for (; len > 0; imgbuf += BUFSIZE, len -= BUFSIZE) {
-      uint16_t sendDataSize = min(len, BUFSIZE);
+    uint8_t* tmpbuf = imgbuf; int tmplen = len;
+    for (; tmplen > 0; tmpbuf += BUFSIZE, tmplen -= BUFSIZE) {
+      uint16_t sendDataSize = min(tmplen, BUFSIZE);
       Serial.println("data size: " + String(sendDataSize));
-      result = esp8266at.sendBinaryToClient(linkID, imgbuf, sendDataSize);
+      result = esp8266at.sendBinaryToClient(linkID, tmpbuf, sendDataSize);
       if (!result) {
         Serial.println("Send data is fault");
         break;
       }     
 #ifdef SDDEBUG
-      if (result) 
+      if (result && bRecord) { 
         myFile.write(imgbuf, sendDataSize);
+      }
 #endif
     }
     
 #ifdef SDDEBUG
-    myFile.close();
-    if (!result)
-      theSD.remove(filename);
+    if (bRecord) {
+      myFile.close();
+      if (!result)
+        theSD.remove(filename);
+    }
 #endif
     digitalWrite(LED2, LOW);
   }
@@ -161,7 +186,7 @@ void loop() {
     msg += "var now = new Date();\r\n";
     msg += "document.webcam.src = cam.src + '?' + now.getTime();\r\n" ;
     msg += "document.getElementById('update').innerHTML = now.getHours() + ':' + now.getMinutes() + ':' + now.getSeconds();\r\n"; 
-    msg += "setTimeout('webcamTimer()'," + String(SLIDESHOW_INTERVAL) + ");\r\n" ;
+    msg += "setTimeout('webcamTimer()'," + String(SLIDESHOW_INTERVAL*1000) + ");\r\n" ;
     msg += "}\r\n";
     msg +="</script></body></html>\r\n\r\n";
     Serial.println(msg);
