@@ -43,13 +43,50 @@ const uint16_t NUM_PIXELS = 4;
 SpresenseNeoPixel<PIN, NUM_PIXELS> neopixel;
 #endif
 
+
+uint8_t* take_picture(uint32_t interval, int* len) {
+  static uint32_t last_time_ms = 0;
+  static int len_;
+  static uint8_t* imgbuf_;
+  uint32_t duration = millis() - last_time_ms;
+  if (duration > (interval-1)*1000) {
+    Serial.println("interval: " + String(duration) + " ms");
+    CamImage img = theCamera.takePicture();
+    last_time_ms = millis();
+    len_ = img.getImgSize();
+    if (imgbuf_ != NULL) { free(imgbuf_); }
+    imgbuf_ = (uint8_t*)malloc(len_*sizeof(uint8_t));
+    memcpy(imgbuf_, img.getImgBuff(), len_*sizeof(uint8_t)); 
+    Serial.println("Image Size: " + String(len_));    
+#ifdef SDDEBUG
+    char filename[16];
+    static int g_counter = 0;
+    sprintf(filename, "P%05d.JPG", g_counter);
+    if (theSD.exists(filename)) theSD.remove(filename);
+    Serial.println("Save the taken picture as " + String(filename));
+    File myFile = theSD.open(filename, FILE_WRITE);
+    ++g_counter;
+    myFile.write(imgbuf_, sendDataSize);
+    myFile.close();
+#endif     
+  } else {
+    Serial.println("Resending the previous picture");
+  }
+  *len = len_;
+  return imgbuf_;
+}
+
+
+int len;
+uint8_t* imgbuf;
+
 void setup() {
   
   Serial.begin(BAUDRATE);  
   theCamera.begin();
   Serial.println("Set Auto white balance parameter");
   theCamera.setAutoWhiteBalanceMode(CAM_WHITE_BALANCE_FLUORESCENT);
-  theCamera.setStillPictureImageFormat(CAM_IMGSIZE_QVGA_H, CAM_IMGSIZE_QVGA_V, CAM_IMAGE_PIX_FMT_JPG);
+  theCamera.setStillPictureImageFormat(CAM_IMGSIZE_VGA_H, CAM_IMGSIZE_VGA_V, CAM_IMAGE_PIX_FMT_JPG);
 
   esp8266at.begin(BAUDRATE);
 #ifdef SAP_MODE
@@ -77,8 +114,9 @@ void setup() {
   neopixel.set(255,255,255);
   neopixel.show();
 #endif
-
-  esp8266at.setWaitTime(100);
+  // take a shot for initial access
+  imgbuf = take_picture(0, &len); 
+  // esp8266at.setWaitTime(100);
 }
 
 void loop() {
@@ -93,38 +131,12 @@ void loop() {
 
   digitalWrite(LED2, HIGH);
   if (s.indexOf("cam.jpg") != -1) {
-    static uint32_t last_time_ms = 0;
-    static int len = 0;
-    static uint8_t* imgbuf = NULL;    
-    uint32_t duration = (millis() - last_time_ms)/1000;
-    if (duration > SLIDESHOW_INTERVAL) {
-      digitalWrite(LED3, HIGH);
-      len = 0;
-      while (len == 0) {
-        Serial.println("Taking a picture");
-        CamImage img = theCamera.takePicture();
-        len = img.getImgSize();
-        if (imgbuf != NULL) { free(imgbuf); }
-        imgbuf = (uint8_t*)malloc(len*sizeof(uint8_t));
-        memcpy(imgbuf, img.getImgBuff(), len*sizeof(uint8_t));
-        last_time_ms = millis();
-        Serial.println("Image Size: " + String(len));
-      }
-#ifdef SDDEBUG
-      char filename[16];
-      static int g_counter = 0;
-      sprintf(filename, "P%05d.JPG", g_counter);
-      if (theSD.exists(filename)) theSD.remove(filename);
-      Serial.println("Save the taken picture as " + String(filename));
-      File myFile = theSD.open(filename, FILE_WRITE);
-      ++g_counter;
-      myFile.write(imgbuf, sendDataSize);
-      myFile.close();
-#endif     
-    } else {
-      Serial.println("Resending a picture");
-    }
+    digitalWrite(LED3, HIGH);
+    Serial.println("Taking a picture");
+    imgbuf = take_picture(SLIDESHOW_INTERVAL, &len);
+
     // send the Hheader
+    uint32_t start_time = millis();
     String msg = "HTTP/1.1 200 OK\r\n";
     msg += "Content-Type: image/jpeg\r\n";
     msg += "Content-Length: ";
@@ -143,6 +155,8 @@ void loop() {
         break;
       }
     }
+    uint32_t sendtime = millis() - start_time;
+    Serial.println("time of sending an image: " + String(sendtime));
     digitalWrite(LED3, LOW);
   }
   else if (s.indexOf("index.html") != -1) {
