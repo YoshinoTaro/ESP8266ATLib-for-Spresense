@@ -1,6 +1,6 @@
 /*
  * Spresense ESP8266ATLib Simple Camera Slideshow 
- * Copyright 2020-2022 Yoshino Taro
+ * Copyright 2019-2022 Yoshino Taro
  * 
  * This example demostrate how to make a simple serveillance camera using ESP8266ATLib.
  * Please note that this library is made for Spresense ESP9266 Wi-Fi Add-on board.
@@ -21,13 +21,11 @@
 #define BAUDRATE 115200
 #define BUFSIZE 2048
 
-#define SLIDESHOW_INTERVAL (10) /* sec */
+#define SLIDESHOW_INTERVAL (60) /* sec */
 
 #ifdef SDDEBUG
 #include <SDHCI.h>
 SDClass theSD;
-File myFile;
-char filename[16];
 #endif
 
 #ifdef SAP_MODE
@@ -91,22 +89,16 @@ void loop() {
 
   if (!(s.startsWith("+IPD") && s.indexOf("HTTP/1"))) return; 
   if (s.indexOf("GET") < 0) return;  // only GET acceptable
-  // linkID = esp8266at.extractLinkID(s);
   Serial.println(s);
 
+  digitalWrite(LED2, HIGH);
   if (s.indexOf("cam.jpg") != -1) {
     static uint32_t last_time_ms = 0;
     static int len = 0;
-    static uint8_t* imgbuf = NULL;
-
-    digitalWrite(LED2, HIGH);
-    
-#ifdef SDDEBUG
-    bool bRecord = false;
-#endif
-
+    static uint8_t* imgbuf = NULL;    
     uint32_t duration = (millis() - last_time_ms)/1000;
     if (duration > SLIDESHOW_INTERVAL) {
+      digitalWrite(LED3, HIGH);
       len = 0;
       while (len == 0) {
         Serial.println("Taking a picture");
@@ -117,15 +109,22 @@ void loop() {
         memcpy(imgbuf, img.getImgBuff(), len*sizeof(uint8_t));
         last_time_ms = millis();
         Serial.println("Image Size: " + String(len));
-        delay(100);
       }
 #ifdef SDDEBUG
-      bRecord = true;
-#endif
+      char filename[16];
+      static int g_counter = 0;
+      sprintf(filename, "P%05d.JPG", g_counter);
+      if (theSD.exists(filename)) theSD.remove(filename);
+      Serial.println("Save the taken picture as " + String(filename));
+      File myFile = theSD.open(filename, FILE_WRITE);
+      ++g_counter;
+      myFile.write(imgbuf, sendDataSize);
+      myFile.close();
+#endif     
     } else {
       Serial.println("Resending a picture");
     }
-    
+    // send the Hheader
     String msg = "HTTP/1.1 200 OK\r\n";
     msg += "Content-Type: image/jpeg\r\n";
     msg += "Content-Length: ";
@@ -133,16 +132,7 @@ void loop() {
     msg += "\r\n";
     Serial.print(msg);
     esp8266at.sendMessageToClient(linkID, msg);
-    
-#ifdef SDDEBUG
-    if (bRecord) {
-      static int g_counter = 0;
-      sprintf(filename, "P%05d.JPG", g_counter);
-      Serial.println("Save the taken picture as " + String(filename));
-      myFile = theSD.open(filename, FILE_WRITE);
-      ++g_counter;
-    }
-#endif
+    // send the captured image    
     uint8_t* tmpbuf = imgbuf; int tmplen = len;
     for (; tmplen > 0; tmpbuf += BUFSIZE, tmplen -= BUFSIZE) {
       uint16_t sendDataSize = min(tmplen, BUFSIZE);
@@ -151,22 +141,9 @@ void loop() {
       if (!result) {
         Serial.println("Send data is fault");
         break;
-      }     
-#ifdef SDDEBUG
-      if (result && bRecord) { 
-        myFile.write(imgbuf, sendDataSize);
       }
-#endif
     }
-    
-#ifdef SDDEBUG
-    if (bRecord) {
-      myFile.close();
-      if (!result)
-        theSD.remove(filename);
-    }
-#endif
-    digitalWrite(LED2, LOW);
+    digitalWrite(LED3, LOW);
   }
   else if (s.indexOf("index.html") != -1) {
     String uri = "http://" + esp8266at.getLocalIP();
@@ -193,7 +170,7 @@ void loop() {
     esp8266at.sendMessageToClient(linkID, msg);
   }
   else if (s.indexOf("favicon") != -1) {
-    // do nothing
+    // do nothing?
   } 
   else {
     String uri = "http://" + esp8266at.getLocalIP();
@@ -210,6 +187,6 @@ void loop() {
   }
   
   Serial.println("Connection closed: " + linkID);
-  esp8266at.closeClientConnection(linkID);    
-  delay(100);
+  esp8266at.closeClientConnection(linkID);
+  digitalWrite(LED2, LOW);
 }
