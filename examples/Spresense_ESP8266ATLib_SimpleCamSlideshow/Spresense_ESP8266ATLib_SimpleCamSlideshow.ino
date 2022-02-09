@@ -17,7 +17,11 @@
 
 // #define SDDEBUG
 // #define SAP_MODE
-/* you need to set a baurate for ESP8266 connection */
+/* you need to set a baurate for ESP8266 connection 
+ * you can set the baudrate upto 2000000 by commands of AT+UART_DEF=<baudrate>,8,1,0,0
+ * Please see the below site about how to communicate to ESP8266 via Spresense
+ * https://makers-with-myson.blog.ss-blog.jp/2019-03-17
+ */
 #define BAUDRATE 115200
 #define BUFSIZE 2048
 
