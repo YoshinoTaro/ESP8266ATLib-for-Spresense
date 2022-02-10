@@ -171,7 +171,7 @@ void loop() {
     Serial.print(msg);
     esp8266at.sendMessageToClient(linkID, msg);
     msg = "<html><head><title>Spresense Camera Slideshow</title></head><body>\r\n";
-    msg += "<img name='webcam' width='640' height='480'><br>\r\n";
+    msg += "<img name='webcam' width='640' height='480' alt='wait for a picture'><br>\r\n";
     msg += "Update(<span id='update'></span>)\r\n";
     msg += "<script type='text/javascript'>\r\n";
     msg += "cam = new Image();\r\n";
