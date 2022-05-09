@@ -78,6 +78,7 @@ public:
 
     // Client APIs
     bool setupTcpClient(String server, String portNumber);
+    bool setupUdpClient(String server, String portNumber);
     String espListenToServer();
     bool sendMessageToServer(String msg);
     void closeServerConnection();

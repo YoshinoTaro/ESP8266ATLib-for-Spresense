@@ -369,6 +369,28 @@ bool ESP8266ATLib::setupTcpClient(String server, String portNumber)
   return true;
 }
 
+bool ESP8266ATLib::setupUdpClient(String server, String portNumber) 
+{
+  bool result = false;
+
+  debugPrint("Connect to server");
+  String cmd  = "AT+CIPSTART=";
+         cmd += "\"UDP\"";
+         cmd += ",";
+         cmd += "\"" + server + "\"";
+         cmd += ",";
+         cmd += portNumber;
+  sendCommand(cmd);
+  result = waitForResponse("OK");
+  if (!result) {
+    fatalError("ESP8266 cannot connect to " + server); 
+    return false;
+  }
+  delay(mWaitTime);
+
+  return true;
+}
+
 bool ESP8266ATLib::sendMessageToServer(String msg)
 {
   bool result = false;
