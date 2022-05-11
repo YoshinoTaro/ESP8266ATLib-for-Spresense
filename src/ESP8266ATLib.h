@@ -48,7 +48,7 @@
 
 #define DEFAULT_WAIT 200
 
-// #define ESP_DEBUG
+//#define ESP_DEBUG
 
 class ESP8266ATLib {
 public:
@@ -59,6 +59,7 @@ public:
     bool espReset();
     void setDebug();
     bool isDebug();
+    bool isConnected();
     void setWaitTime(uint16_t wait_time /* msec */); // The default is DEFAULT_WAIT
     uint16_t getWaitTime();
     bool espConnectAP(const char *ssid, const char *passwd);
@@ -80,14 +81,19 @@ public:
     bool setupTcpClient(String server, String portNumber);
     bool setupUdpClient(String server, String portNumber);
     String espListenToServer();
+    int espListenToUdpServer(uint8_t *buf, int len);
     bool sendMessageToServer(String msg);
+    bool sendUdpMessageToServer(uint8_t *data, int len);
     void closeServerConnection();
+    void closeUdpServerConnection();
 
 private:
     bool waitForResponse(String key, uint16_t trial = DEFAULT_RESPONSE_TRIAL);
     char* readResponse(uint16_t timeout = DEFAULT_RESPONSE_CHECK); 
+    char* readBinResponse(uint16_t timeout = DEFAULT_RESPONSE_CHECK); 
     void sendCommand(String cmd); 
     void sendData(const char *data, int len); 
+    void sendData(const uint8_t *data, int len); 
     String& getIpAddress();
     void fatalError(String error);
     void clientConnectionTerminated(String error, String linkID);
@@ -97,6 +103,7 @@ private:
 private:
     char mReplyBuffer[BUFFSIZE];
     String mIpAddress;
+    bool mConnected;
     bool mDebug;
     bool mSoftAP;
     String mSSID;

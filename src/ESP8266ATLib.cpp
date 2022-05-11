@@ -1,27 +1,28 @@
 /*
  * ESP8266 AT command based Wi-Fi library for Sony Spresense
- * Copyright 2019 Yoshino Taro
+ * Copyright 2019-2022 Yoshino Taro
  *
  * This library is for Spresense Wi-Fi Add-on board based on ESP8266.
  * The license of this library is LGPL v2.1 
  * (because Arduino library of Spresense is under LGPL v2.1)
  *
  * Change Log:
+ *   2022 May. 11th  add udp protocol and optimization
  *   2019 Apr. 19th  initial release
  */
 
 #include "ESP8266ATLib.h"
 #include <stdio.h>
 
-char* reply = '\0';
 const String esp8266_terminated = "Transmission terminated.."; 
 const String esp8266_no_communication = "No communication with ESP8266";
 const String esp8266_comm_error = "Transmission Error";
 
 ESP8266ATLib::ESP8266ATLib() 
 {
-  memset(mReplyBuffer, 0, BUFFSIZE);
+  memset(mReplyBuffer, NULL, BUFFSIZE);
   mIpAddress = "";
+  mConnected = false;
   mDebug = false;
   mSoftAP = false;
   mSSID = "";
@@ -33,7 +34,6 @@ bool ESP8266ATLib::begin(unsigned long baudrate)
 {
   bool result = false;
   Serial2.begin(baudrate);
-  delay(mWaitTime);
 
   debugPrint("Checking for ESP AT response");
   sendCommand("AT");
@@ -42,7 +42,6 @@ bool ESP8266ATLib::begin(unsigned long baudrate)
     fatalError(esp8266_no_communication); 
     return false;
   }
-  delay(mWaitTime);
 
   debugPrint("Soft resetting...");
   result = espReset();
@@ -70,7 +69,6 @@ bool ESP8266ATLib::espVersion()
     return false;
   }
 
-  delay(mWaitTime);
   return true;
 }
 
@@ -85,7 +83,6 @@ bool ESP8266ATLib::espReset()
     return false;
   }
   debugPrint("Reseted ESP8266");
-  delay(mWaitTime);
 
   sendCommand("ATE0");
   result = waitForResponse("OK");
@@ -94,7 +91,6 @@ bool ESP8266ATLib::espReset()
     return false;
   }
   debugPrint("Disabled ECHO");
-  delay(mWaitTime);
 
   return true;
 }
@@ -105,6 +101,11 @@ void ESP8266ATLib::setDebug()
 }
 
 bool ESP8266ATLib::isDebug()
+{
+  return mDebug;
+}
+
+bool ESP8266ATLib::isConnected()
 {
   return mDebug;
 }
@@ -131,7 +132,6 @@ bool ESP8266ATLib::espConnectAP(const char *ssid, const char *passwd)
     fatalError(esp8266_no_communication); 
     return false;
   }
-  delay(mWaitTime);
 
   debugPrint("Connect AP to " + mSSID);
   String cmd = "AT+CWJAP=\"";
@@ -145,7 +145,6 @@ bool ESP8266ATLib::espConnectAP(const char *ssid, const char *passwd)
     fatalError(esp8266_no_communication); 
     return false;
   }
-  delay(mWaitTime);
 
   debugPrint("IP address:" + getLocalIP());
   return true;
@@ -165,7 +164,6 @@ bool ESP8266ATLib::espStartAP(const char *ssid, const char *passwd)
     fatalError(esp8266_no_communication); 
     return false;
   }
-  delay(mWaitTime);
 
   debugPrint("Start AP as " + mSSID);
   String cmd = "AT+CWSAP=\"";
@@ -181,7 +179,6 @@ bool ESP8266ATLib::espStartAP(const char *ssid, const char *passwd)
     fatalError(esp8266_no_communication); 
     return false;
   }
-  delay(mWaitTime);
 
   debugPrint("IP address:" + getLocalIP());
   return true;
@@ -204,7 +201,6 @@ String& ESP8266ATLib::getLocalIP()
   }
   if (!result) 
     fatalError(esp8266_no_communication); 
-  delay(mWaitTime);
 
   return getIpAddress();
 }
@@ -227,7 +223,6 @@ bool ESP8266ATLib::setupTcpServer(String portNumber)
     fatalError("ESP8266 cannot turn on the multi client mode"); 
     return false;
   }
-  delay(mWaitTime);
 
   debugPrint("Server Mode");
   String cmd = "AT+CIPSERVER=1," + portNumber;
@@ -237,13 +232,18 @@ bool ESP8266ATLib::setupTcpServer(String portNumber)
     fatalError(esp8266_no_communication); 
     return false;
   }
-  delay(mWaitTime);
 
+  mConnected = true;
   return true;
 }
 
 String ESP8266ATLib::espListenToServer()
 {
+  if (!mConnected) {
+    debugPrint("no connection to server");
+    return String();
+  }
+
   String res = readResponse();
   if (strstr(res.c_str(), "+IPD")) {
     uint16_t index = res.indexOf(":");
@@ -258,6 +258,39 @@ String ESP8266ATLib::espListenToServer()
   return res;
 }
 
+int ESP8266ATLib::espListenToUdpServer(uint8_t *buf, int len)
+{
+  int sizeOfResponse = 0;
+
+  if (!mConnected) {
+    debugPrint("no connection to server");
+    return 0; 
+  }
+
+  memset(buf, NULL, len);
+  char* ptr = readBinResponse();
+  if (ptr == NULL) return 0;
+
+  if (strstr(ptr, "+IPD")) {
+    String res = String(ptr);
+    uint16_t index = res.indexOf(":");
+    sizeOfResponse  = res.substring(9, index).toInt(); // need to consider 0x0a and 0x0d
+    if (sizeOfResponse < len) {
+      memcpy(buf, ptr+index+1, sizeOfResponse); // overwrite
+    } else {
+      debugPrint("espListenToUdpServer: buf size is less than receive data");
+      return 0;
+    }
+  }
+
+  if (strstr(ptr, "CLOSED")) {
+    debugPrint("Connection Closed");
+    return 0;
+  }
+
+  return sizeOfResponse;
+}
+
 String ESP8266ATLib::espListenToClient()
 {
   return readResponse();
@@ -265,6 +298,11 @@ String ESP8266ATLib::espListenToClient()
 
 String ESP8266ATLib::espListenToClient(String* linkid)
 {
+  if (!mConnected) {
+    debugPrint("no connection to client");
+    return String(); 
+  }
+
   String res = String(readResponse());
   *linkid = res.substring(5,6);
   return res;
@@ -273,6 +311,10 @@ String ESP8266ATLib::espListenToClient(String* linkid)
 bool ESP8266ATLib::sendMessageToClient(String linkID, String msg)
 {
   bool result = false;
+  if (!mConnected) {
+    debugPrint("no connection to client");
+    return false;
+  }
 
   String cmd = "AT+CIPSENDBUF=" + linkID + "," + msg.length() + "\r\n";
   sendCommand(cmd);
@@ -281,7 +323,6 @@ bool ESP8266ATLib::sendMessageToClient(String linkID, String msg)
     fatalError(esp8266_no_communication); 
     return false;
   }
-  delay(mWaitTime);
 
   sendData(msg.c_str(), msg.length());
   result = waitForResponse("SEND OK");
@@ -289,7 +330,6 @@ bool ESP8266ATLib::sendMessageToClient(String linkID, String msg)
     clientConnectionTerminated(esp8266_comm_error, linkID);
     return false;
   }
-  delay(mWaitTime);
 
   return true;
 }
@@ -297,6 +337,10 @@ bool ESP8266ATLib::sendMessageToClient(String linkID, String msg)
 bool ESP8266ATLib::sendBinaryToClient(String linkID, uint8_t* binary, uint16_t len)
 {
   bool result = false;
+  if (!mConnected) {
+    debugPrint("no connection to client");
+    return false;
+  }
 
    // ESP8266 AT Command can send the data under 2048bytes
   if (len > 2048) { 
@@ -305,7 +349,7 @@ bool ESP8266ATLib::sendBinaryToClient(String linkID, uint8_t* binary, uint16_t l
   }
   
   char* buf = (char*)malloc(sizeof(char)*(len+1));
-  memset(buf, 0, len+1);
+  memset(buf, NULL, len+1);
   memcpy(buf, (char*)binary, len);
   buf[len+1] = '\0';
 
@@ -324,20 +368,19 @@ bool ESP8266ATLib::sendBinaryToClient(String linkID, uint8_t* binary, uint16_t l
     clientConnectionTerminated(esp8266_comm_error, linkID);
     return false;
   } 
-  // delay(mWaitTime);
 
   return true;
 }
 
 void ESP8266ATLib::closeClientConnection(String linkID)
 {
+  if (!mConnected) return;
+  
   String cmd = "AT+CIPCLOSE=" + linkID + "\r\n";
   sendCommand(cmd);
   bool result = waitForResponse("CLOSED");
-  if (!result) 
-    fatalError(esp8266_no_communication);
+  if (!result) fatalError(esp8266_no_communication);
 
-  delay(mWaitTime);
 }
 
 String ESP8266ATLib::extractLinkID(String s)
@@ -364,8 +407,8 @@ bool ESP8266ATLib::setupTcpClient(String server, String portNumber)
     fatalError("ESP8266 cannot connect to " + server); 
     return false;
   }
-  delay(mWaitTime);
 
+  mConnected = true;
   return true;
 }
 
@@ -373,27 +416,43 @@ bool ESP8266ATLib::setupUdpClient(String server, String portNumber)
 {
   bool result = false;
 
+  debugPrint("Multi Connection Mode");
+  sendCommand("AT+CIPMUX=1");
+  result = waitForResponse("OK");
+  if (!result) {
+    fatalError("ESP8266 cannot turn on the multi connection mode"); 
+    return false;
+  }
+
   debugPrint("Connect to server");
   String cmd  = "AT+CIPSTART=";
-         cmd += "\"UDP\"";
+         cmd += "4,\"UDP\"";
          cmd += ",";
          cmd += "\"" + server + "\"";
          cmd += ",";
          cmd += portNumber;
+         cmd += ",";
+         cmd += "1112";
+         cmd += ",";
+         cmd += "0";
   sendCommand(cmd);
   result = waitForResponse("OK");
   if (!result) {
     fatalError("ESP8266 cannot connect to " + server); 
     return false;
   }
-  delay(mWaitTime);
 
+  mConnected = true;
   return true;
 }
 
 bool ESP8266ATLib::sendMessageToServer(String msg)
 {
   bool result = false;
+  if (!mConnected) {
+    debugPrint("no connection to server");
+    return false;
+  }
 
   String cmd = "AT+CIPSENDBUF=" + String(msg.length()) + "\r\n";
   sendCommand(cmd);
@@ -402,7 +461,6 @@ bool ESP8266ATLib::sendMessageToServer(String msg)
     fatalError(esp8266_no_communication); 
     return false;
   }
-  delay(mWaitTime);
 
   sendData(msg.c_str(), msg.length());
   result = waitForResponse("SEND OK");
@@ -410,17 +468,46 @@ bool ESP8266ATLib::sendMessageToServer(String msg)
     serverConnectionTerminated(esp8266_comm_error); 
     return false;
   }
-  delay(mWaitTime);
 
   return true;
 }
 
+bool ESP8266ATLib::sendUdpMessageToServer(uint8_t *data, int len)
+{
+  bool result = false;
+  if (!mConnected) {
+    debugPrint("no connection to server");
+    return false;
+  }
+
+  String cmd = "AT+CIPSEND=4," + String(len) + "\r\n";
+  sendCommand(cmd);
+  result = waitForResponse(">");
+  if (!result) {
+    fatalError(esp8266_no_communication); 
+    return false;
+  }
+
+  sendData(data, len);
+  result = waitForResponse("SEND OK");
+  if (!result) { 
+    serverConnectionTerminated(esp8266_comm_error); 
+    return false;
+  }
+
+  return true;
+}
 
 void ESP8266ATLib::closeServerConnection()
 {
   sendCommand("+++\r\n");
 }
 
+void ESP8266ATLib::closeUdpServerConnection()
+{
+  sendCommand("AT+CIPCLOSE=4\r\n");
+  delay(mWaitTime);
+}
 
 
 // private APIs
@@ -429,13 +516,13 @@ bool ESP8266ATLib::waitForResponse(String key, uint16_t trial)
   while (trial > 0) {
     
     char* res = readResponse(DEFAULT_RESPONSE_CHECK);
+    //if (*res == NULL) return false; 
 
     // LOOK AT ALL THESE POSSIBLE RESPONSES!!!
     if (strstr(res, "wrong syntax")) {
 #ifdef ESP_DEBUG
       printf("\r\n[in] %s\r\n", res); 
 #endif
-
       return false;
     }
     else if (strstr(res, "ERROR")) {
@@ -472,16 +559,15 @@ bool ESP8266ATLib::waitForResponse(String key, uint16_t trial)
 char* ESP8266ATLib::readResponse(uint16_t timeout) 
 {
   uint16_t index = 0;
-
+  memset(mReplyBuffer, NULL, BUFFSIZE);
   while (--timeout) {
-    if (index > BUFFSIZE-1) break;
 
-    while(Serial2.available()) {
+    while(Serial2.available() && index < BUFFSIZE) {
       char c =  Serial2.read();
 #ifdef ESP_DEBUG
       printf("%c", c);
 #endif
-      if (c == '\r') continue; // "Carriage Return" is ignored
+      if (c == '\r')  continue; // "Carriage Return" is ignored
       if (c == '\n') {
         if (index == 0) continue;  // the first "Line Feed" is ignored
         timeout = 0;         // the second "Line Feed" is the end of the line
@@ -500,6 +586,33 @@ char* ESP8266ATLib::readResponse(uint16_t timeout)
 
     if (timeout == 0) break;
     delayMicroseconds(TIMING_ADJUST);
+  }
+  
+  mReplyBuffer[index] = NULL;
+  return mReplyBuffer;
+}
+
+char* ESP8266ATLib::readBinResponse(uint16_t timeout) 
+{
+  uint16_t index = 0;
+  memset(mReplyBuffer, NULL, BUFFSIZE);
+  while (--timeout) {
+
+    while(Serial2.available() && index < BUFFSIZE) {
+      char c =  Serial2.read();
+#ifdef ESP_DEBUG
+      printf("%c[%02x] ", c, c);
+#endif
+      mReplyBuffer[index] = c;
+      ++index;
+      if (index >= BUFFSIZE) {
+        timeout = 0;
+        break;
+      }
+    }
+
+    if (timeout == 0) break;
+    //delayMicroseconds(TIMING_ADJUST);
   }
   
   mReplyBuffer[index] = '\0';
@@ -525,6 +638,29 @@ void ESP8266ATLib::sendData(const char *data, int len)
     delayMicroseconds(TIMING_ADJUST);
   }
   Serial2.write((const uint8_t*)data, len);
+#ifdef ESP_DEBUG
+  printf("[out] ");
+  for (int n = 0; n < len; ++n) {
+    printf("%02x ", data[n]);
+  }
+  printf("\r\n");
+#endif
+}
+
+void ESP8266ATLib::sendData(const uint8_t *data, int len) 
+{
+  while(Serial2.available()) {
+    Serial2.read();
+    delayMicroseconds(TIMING_ADJUST);
+  }
+  Serial2.write(data, len);
+#ifdef ESP_DEBUG
+  printf("[out] ");
+  for (int n = 0; n < len; ++n) {
+    printf("%02x ", data[n]);
+  }
+  printf("\r\n");
+#endif
 }
 
 String& ESP8266ATLib::getIpAddress()
@@ -534,6 +670,7 @@ String& ESP8266ATLib::getIpAddress()
 
 void ESP8266ATLib::fatalError(String error)
 {
+  mConnected = false;
   printf("%s\r\n", error.c_str());
   if (mDebug) {
     printf("%s\r\n", esp8266_terminated.c_str());
@@ -543,6 +680,7 @@ void ESP8266ATLib::fatalError(String error)
 
 void ESP8266ATLib::clientConnectionTerminated(String error, String linkID)
 {
+  mConnected = false;
   printf("%s\r\n", error.c_str());
   printf("%s\r\n", esp8266_terminated.c_str());
   closeClientConnection(linkID);
@@ -550,6 +688,7 @@ void ESP8266ATLib::clientConnectionTerminated(String error, String linkID)
 
 void ESP8266ATLib::serverConnectionTerminated(String error)
 {
+  mConnected = false;
   printf("%s\r\n", error.c_str());
   printf("%s\r\n", esp8266_terminated.c_str());
   closeServerConnection();
