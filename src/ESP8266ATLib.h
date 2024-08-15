@@ -40,7 +40,7 @@
 #include "Arduino.h"
 
 #define DEFAULT_RESPONSE_CHECK 1000
-#define DEFAULT_RESPONSE_TRIAL 30
+#define DEFAULT_RESPONSE_TRIAL 50
 
 /* This value should not be changed */
 #define TIMING_ADJUST 300 
