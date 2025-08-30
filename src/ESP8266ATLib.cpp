@@ -522,24 +522,32 @@ bool ESP8266ATLib::waitForResponse(String key, uint16_t trial)
     if (strstr(res, "wrong syntax")) {
 #ifdef ESP_DEBUG
       printf("\r\n[in] %s\r\n", res); 
+#else
+      delayMicroseconds(DEBUG_ADJUST);
 #endif
       return false;
     }
     else if (strstr(res, "ERROR")) {
 #ifdef ESP_DEBUG
       printf("\r\n[in] %s\r\n", res); 
+#else
+      delayMicroseconds(DEBUG_ADJUST);
 #endif
       return false;
     }
     else if (strstr(res, "busy s...")) {
 #ifdef ESP_DEBUG
       printf("\r\n[in] %s\r\n", res); 
+#else
+      delayMicroseconds(DEBUG_ADJUST);
 #endif
       continue;
     }
     else if (strstr(res, key.c_str())) {
 #ifdef ESP_DEBUG
       printf("\r\n[in] %s\r\n", res); 
+#else
+      delayMicroseconds(DEBUG_ADJUST);
 #endif
       return true;
     }
@@ -623,6 +631,8 @@ void ESP8266ATLib::sendCommand(String cmd)
 {
 #ifdef ESP_DEBUG
   printf("[out] %s\r\n", cmd.c_str());
+#else
+  delayMicroseconds(DEBUG_ADJUST);
 #endif
   while(Serial2.available()) {
     Serial2.read();
@@ -644,6 +654,8 @@ void ESP8266ATLib::sendData(const char *data, int len)
     printf("%02x ", data[n]);
   }
   printf("\r\n");
+#else
+  delayMicroseconds(DEBUG_ADJUST);
 #endif
 }
 
@@ -660,6 +672,8 @@ void ESP8266ATLib::sendData(const uint8_t *data, int len)
     printf("%02x ", data[n]);
   }
   printf("\r\n");
+#else
+  delayMicroseconds(DEBUG_ADJUST);
 #endif
 }
 
