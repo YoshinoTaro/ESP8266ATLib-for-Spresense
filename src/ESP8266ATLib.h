@@ -44,6 +44,7 @@
 
 /* This value should not be changed */
 #define TIMING_ADJUST 300 
+#define DEBUG_ADJUST 1
 #define BUFFSIZE 0xFF
 
 #define DEFAULT_WAIT 200
